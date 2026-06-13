@@ -1,0 +1,4 @@
+interface:
+  display_name: "A2A Handoff"
+  short_description: "Guide Codex through A2A chat handoff work."
+  default_prompt: "Use $a2a-handoff to start an A2A business handoff in the chatroom."
