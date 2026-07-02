@@ -14,7 +14,8 @@
     "url": "https://github.com/hua65540/A2AMCP/issues"
   },
   "bin": {
-    "a2a-chat-mcp": "./dist/index.js"
+    "a2a-chat-mcp": "./dist/index.js",
+    "a2a-chat-mcp-auto": "./dist/autoIndex.js"
   },
   "files": [
     "AGENTS.md",
@@ -28,7 +29,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "postbuild": "chmod +x dist/index.js",
+    "postbuild": "chmod +x dist/index.js dist/autoIndex.js",
     "test": "vitest run",
     "validate:skills": "node scripts/validate-skills.mjs",
     "prepare": "npm run build"

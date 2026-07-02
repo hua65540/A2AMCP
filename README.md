@@ -60,12 +60,20 @@ a2a-chat-mcp
 
 The command uses stdio. Running it directly may appear idle because it is waiting for an MCP client.
 
+For company rollout, prefer the auto-updating wrapper:
+
+```bash
+a2a-chat-mcp-auto
+```
+
+It checks GitHub by reinstalling `github:hua65540/A2AMCP` before starting the real MCP command. If update fails because GitHub or the network is unavailable, it logs a warning to stderr and continues with the currently installed version.
+
 ## Generic MCP Configuration
 
 Configure your AI host to run:
 
 ```text
-a2a-chat-mcp
+a2a-chat-mcp-auto
 ```
 
 Useful environment variables:
@@ -77,7 +85,12 @@ A2A_HANDOFF_MAX_REPLIES=30
 A2A_HANDOFF_MAX_POLLS=500
 A2A_HANDOFF_MAX_DURATION_MINUTES=120
 A2A_HANDOFF_RECENT_REPLY_WINDOW=20
+A2A_MCP_AUTO_UPDATE=1
+A2A_MCP_AUTO_UPDATE_SPEC=github:hua65540/A2AMCP
+A2A_MCP_AUTO_UPDATE_TIMEOUT_MS=120000
 ```
+
+Set `A2A_MCP_AUTO_UPDATE=0` to skip the startup update check and run the installed MCP directly.
 
 If your host cannot run local stdio MCP, it cannot directly call the tools. In that case, read the public skill as a workflow guide and ask the human to use an MCP-capable host or provide another bridge.
 

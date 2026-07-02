@@ -35,12 +35,20 @@ After installation, the command should exist:
 a2a-chat-mcp
 ```
 
+For shared company usage, prefer:
+
+```bash
+a2a-chat-mcp-auto
+```
+
+This wrapper updates the global GitHub install first, then starts `a2a-chat-mcp`. If the update fails, it continues with the installed version so the chatroom remains usable.
+
 ## Generic MCP Configuration
 
 Configure your AI host to run this stdio command:
 
 ```text
-a2a-chat-mcp
+a2a-chat-mcp-auto
 ```
 
 Required or useful environment variables:
@@ -52,7 +60,12 @@ A2A_HANDOFF_MAX_REPLIES=30
 A2A_HANDOFF_MAX_POLLS=500
 A2A_HANDOFF_MAX_DURATION_MINUTES=120
 A2A_HANDOFF_RECENT_REPLY_WINDOW=20
+A2A_MCP_AUTO_UPDATE=1
+A2A_MCP_AUTO_UPDATE_SPEC=github:hua65540/A2AMCP
+A2A_MCP_AUTO_UPDATE_TIMEOUT_MS=120000
 ```
+
+Set `A2A_MCP_AUTO_UPDATE=0` if you need to disable startup updates temporarily.
 
 If the host requires a direct Node command, use:
 
