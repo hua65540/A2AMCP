@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import {
+  AI_ROLE_STATUS,
   BUSINESS_ROLES,
   BUSINESS_ROLE_LABEL,
   HANDOFF_SESSION_STATUS,
   MESSAGE_TARGET_ALL,
+  type AiRoleStatus,
   type BusinessRole,
   type HandoffSessionDto,
   type MessageDto,
@@ -47,6 +49,9 @@ export function createHandoffService({
       const handoffId = createHandoffId(input.roomId, input.role);
       const existing = await stateStore.load(handoffId);
       if (existing && existing.status !== "left") {
+        if (existing.status !== "paused") {
+          await updateAiStatus(chatClient, existing, AI_ROLE_STATUS.idle);
+        }
         return { handoffId, restored: true, state: existing };
       }
 
@@ -79,6 +84,7 @@ export function createHandoffService({
         updatedAt: timestamp
       };
       await stateStore.save(state);
+      await updateAiStatus(chatClient, state, AI_ROLE_STATUS.idle);
       return { handoffId, restored: false, state, handoff };
     },
 
@@ -110,9 +116,16 @@ export function createHandoffService({
       );
       await stateStore.save(nextState);
 
+      const deliverableMessages = messages.filter((message) => shouldDeliverToHandoff(message, state));
+      await updateAiStatus(
+        chatClient,
+        nextState,
+        deliverableMessages.length > 0 ? AI_ROLE_STATUS.busy : AI_ROLE_STATUS.idle
+      );
+
       return {
         state: nextState,
-        messages: messages.filter((message) => shouldDeliverToHandoff(message, state))
+        messages: deliverableMessages
       };
     },
 
@@ -128,6 +141,7 @@ export function createHandoffService({
       const replyToMessageIds = unique(input.replyToMessageIds ?? []);
       const clientMessageId = createClientMessageId("send", state, content, targetRoles, replyToMessageIds);
       if (state.sentClientMessageIds.includes(clientMessageId)) {
+        await updateAiStatus(chatClient, state, AI_ROLE_STATUS.idle);
         return { skipped: true, clientMessageId, message: null, state };
       }
       const activeState = await prepareOutgoingState({
@@ -160,6 +174,7 @@ export function createHandoffService({
         now
       );
       await stateStore.save(nextState);
+      await updateAiStatus(chatClient, nextState, AI_ROLE_STATUS.idle);
       return { skipped: false, clientMessageId, message, state: nextState };
     },
 
@@ -179,6 +194,7 @@ export function createHandoffService({
         ...replyToMessageIds
       ]);
       if (state.sentClientMessageIds.includes(clientMessageId)) {
+        await updateAiStatus(chatClient, state, AI_ROLE_STATUS.idle);
         return { skipped: true, clientMessageId, message: null, state };
       }
       const activeState = await prepareOutgoingState({
@@ -212,6 +228,7 @@ export function createHandoffService({
         now
       );
       await stateStore.save(nextState);
+      await updateAiStatus(chatClient, nextState, AI_ROLE_STATUS.idle);
       return { skipped: false, clientMessageId, message, state: nextState };
     },
 
@@ -222,6 +239,7 @@ export function createHandoffService({
       }
       const nextState = touch({ ...state, status: "left" }, now);
       await stateStore.save(nextState);
+      await updateAiStatus(chatClient, nextState, AI_ROLE_STATUS.offline);
       return { state: nextState };
     },
 
@@ -235,6 +253,7 @@ export function createHandoffService({
         : `${roleCompletionLabel(state.role)} 已确认对接完成。`;
       const clientMessageId = createClientMessageId("finish", state, content, [MESSAGE_TARGET_ALL], []);
       if (state.status === "completed" || state.sentClientMessageIds.includes(clientMessageId)) {
+        await updateAiStatus(chatClient, state, AI_ROLE_STATUS.idle);
         return { skipped: true, clientMessageId, message: null, state };
       }
       const activeState = await refreshCentralStatus(chatClient, stateStore, state, now);
@@ -274,6 +293,7 @@ export function createHandoffService({
         now
       );
       await stateStore.save(nextState);
+      await updateAiStatus(chatClient, nextState, AI_ROLE_STATUS.idle);
       return { skipped: false, clientMessageId, message, handoff, state: nextState };
     },
 
@@ -293,6 +313,7 @@ export function createHandoffService({
         now
       );
       await stateStore.save(nextState);
+      await updateAiStatus(chatClient, nextState, AI_ROLE_STATUS.offline);
       return { state: nextState, handoff };
     },
 
@@ -313,6 +334,7 @@ export function createHandoffService({
         now
       );
       await stateStore.save(nextState);
+      await updateAiStatus(chatClient, nextState, AI_ROLE_STATUS.idle);
       return { state: nextState, handoff };
     },
 
@@ -328,6 +350,10 @@ export function createHandoffService({
       return { state: nextState, handoff };
     }
   };
+}
+
+async function updateAiStatus(chatClient: ChatApiClient, state: HandoffState, status: AiRoleStatus): Promise<void> {
+  await chatClient.updateAiStatus(state.roomId, state.role, state.memberId, status);
 }
 
 async function maybeSendWaitingConfirmationMessage(input: {
@@ -442,6 +468,7 @@ async function autoPauseHandoff(input: {
     updatedAt: stoppedAt
   };
   await input.stateStore.save(nextState);
+  await updateAiStatus(input.chatClient, nextState, AI_ROLE_STATUS.offline);
   throw new Error("HANDOFF_AUTO_PAUSED");
 }
 

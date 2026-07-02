@@ -130,6 +130,21 @@ describe("HTTP chat API client", () => {
     );
   });
 
+  it("updates AI role status through the AI status API", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ aiStatuses: [] }));
+    const client = createHttpChatApiClient({ apiBaseUrl: "http://chat.test/api", fetch: fetchMock });
+
+    await client.updateAiStatus("room_1", "server", "mem_ai", "busy");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://chat.test/api/rooms/room_1/ai-statuses/server",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ memberId: "mem_ai", status: "busy" })
+      })
+    );
+  });
+
   it("pauses, resumes, and reads central handoff status through the handoff API", async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ handoff: { roomId: "room_1", status: "discussing" } }));
     const client = createHttpChatApiClient({ apiBaseUrl: "http://chat.test/api", fetch: fetchMock });

@@ -14,6 +14,8 @@ Typical order:
 
 ## Tools
 
+AI role status is automatically reported to the chatroom backend. `start_handoff` and `resume_handoff` report `idle`; `poll_messages` reports `busy` when it returns actionable messages and `idle` otherwise; `send_message`, `upload_attachment`, and `finish_handoff` report `idle`; `pause_handoff`, `leave_room`, and safety auto-pause report `offline`.
+
 ### `start_handoff`
 
 Join a room as an AI role and create or restore local handoff state.

@@ -1,4 +1,12 @@
-import type { BusinessRole, HandoffSessionDto, MemberDto, MessageDto, MessageTarget } from "../shared/index.js";
+import type {
+  AiRoleStatus,
+  AiRoleStatusDto,
+  BusinessRole,
+  HandoffSessionDto,
+  MemberDto,
+  MessageDto,
+  MessageTarget
+} from "../shared/index.js";
 
 export type JoinRoomInput = {
   roomId: string;
@@ -29,6 +37,12 @@ export type ChatApiClient = {
   sendMessage(input: SendMessageInput): Promise<MessageDto>;
   uploadAttachment(input: UploadAttachmentInput): Promise<MessageDto>;
   leaveRoom(roomId: string, memberId: string): Promise<MemberDto>;
+  updateAiStatus(
+    roomId: string,
+    role: BusinessRole,
+    memberId: string,
+    status: AiRoleStatus
+  ): Promise<AiRoleStatusDto[]>;
   startHandoffRole(roomId: string, role: BusinessRole, memberId: string): Promise<HandoffSessionDto>;
   completeHandoffRole(
     roomId: string,

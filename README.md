@@ -110,6 +110,13 @@ The MCP exposes:
 
 See [docs/TOOL_REFERENCE.md](docs/TOOL_REFERENCE.md) for details.
 
+AI role status is reported automatically to the chatroom backend:
+
+- `start_handoff` and `resume_handoff`: `idle`
+- `poll_messages` with deliverable messages: `busy`
+- `poll_messages` without deliverable messages, `send_message`, `upload_attachment`, and `finish_handoff`: `idle`
+- `pause_handoff`, `leave_room`, and safety auto-pause: `offline`
+
 ## Development
 
 ```bash

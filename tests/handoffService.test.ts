@@ -33,13 +33,22 @@ describe("handoff service", () => {
           body: input.body
         });
       }),
-      uploadAttachment: vi.fn(),
+      uploadAttachment: vi.fn(async (input) =>
+        buildMessage({
+          id: "msg_upload",
+          senderMemberId: input.senderMemberId,
+          senderBusinessRole: "server",
+          targetRoles: input.targetRoles,
+          body: input.body
+        })
+      ),
       leaveRoom: vi.fn(async () => buildMember("mem_server_ai", "server", "2026-06-13T00:05:00.000Z")),
       startHandoffRole: vi.fn(async () => buildHandoff("discussing")),
       completeHandoffRole: vi.fn(async () => buildHandoff("waiting_human_confirmation")),
       pauseHandoffRole: vi.fn(async () => buildHandoff("discussing", "paused")),
       resumeHandoffRole: vi.fn(async () => buildHandoff("discussing")),
-      readHandoffStatus: vi.fn(async () => buildHandoff("discussing"))
+      readHandoffStatus: vi.fn(async () => buildHandoff("discussing")),
+      updateAiStatus: vi.fn(async () => [])
     } as unknown as ChatApiClient;
   });
 
@@ -63,6 +72,7 @@ describe("handoff service", () => {
 
     expect(client.joinRoom).toHaveBeenCalledTimes(1);
     expect(client.startHandoffRole).toHaveBeenCalledWith("room_1", "server", "mem_server_ai");
+    expect(statusUpdateMock(client)).toHaveBeenCalledWith("room_1", "server", "mem_server_ai", "idle");
     expect(first.restored).toBe(false);
     expect(second.restored).toBe(true);
     expect(second.state).toMatchObject({
@@ -88,6 +98,8 @@ describe("handoff service", () => {
     expect(secondPoll.messages).toEqual([]);
     expect(firstPoll.state.lastScannedMessageId).toBe("msg_4");
     expect(client.listMessages).toHaveBeenLastCalledWith("room_1", "msg_4", 50);
+    expect(statusUpdateMock(client)).toHaveBeenCalledWith("room_1", "server", "mem_server_ai", "busy");
+    expect(statusUpdateMock(client)).toHaveBeenLastCalledWith("room_1", "server", "mem_server_ai", "idle");
   });
 
   it("sends a reply once for the same content and marks replied messages as processed", async () => {
@@ -97,6 +109,7 @@ describe("handoff service", () => {
       displayName: "服务端 AI",
       role: "server"
     });
+    statusUpdateMock(client).mockClear();
 
     const first = await service.sendMessage({
       handoffId: started.state.handoffId,
@@ -114,8 +127,29 @@ describe("handoff service", () => {
     expect(first.skipped).toBe(false);
     expect(second.skipped).toBe(true);
     expect(client.sendMessage).toHaveBeenCalledTimes(1);
+    expect(statusUpdateMock(client)).toHaveBeenCalledWith("room_1", "server", "mem_server_ai", "idle");
     expect(first.state.processedMessageIds).toContain("msg_1");
     expect(second.clientMessageId).toBe(first.clientMessageId);
+  });
+
+  it("reports idle after uploading an attachment", async () => {
+    const service = createService(client, stateRoot);
+    const started = await service.startHandoff({
+      roomId: "room_1",
+      displayName: "服务端 AI",
+      role: "server"
+    });
+    statusUpdateMock(client).mockClear();
+
+    await service.uploadAttachment({
+      handoffId: started.state.handoffId,
+      filePath: "/tmp/field.txt",
+      content: "字段说明",
+      targetRoles: ["ios_client"]
+    });
+
+    expect(client.uploadAttachment).toHaveBeenCalledTimes(1);
+    expect(statusUpdateMock(client)).toHaveBeenCalledWith("room_1", "server", "mem_server_ai", "idle");
   });
 
   it("finishes a handoff once, records central status, and rejects normal replies after completion", async () => {
@@ -125,6 +159,7 @@ describe("handoff service", () => {
       displayName: "服务端 AI",
       role: "server"
     });
+    statusUpdateMock(client).mockClear();
 
     const finished = await service.finishHandoff({
       handoffId: started.state.handoffId,
@@ -139,6 +174,7 @@ describe("handoff service", () => {
     expect(finished.handoff?.status).toBe("waiting_human_confirmation");
     expect(finished.state.confirmedRoles).toEqual(["server"]);
     expect(client.completeHandoffRole).toHaveBeenCalledWith("room_1", "server", "mem_server_ai", "服务端字段已确认");
+    expect(statusUpdateMock(client)).toHaveBeenCalledWith("room_1", "server", "mem_server_ai", "idle");
     expect(sentMessages.map((message) => message.body)).toEqual([
       "服务端 已确认对接完成：服务端字段已确认",
       "所有 AI 已完成对接，等待人工确认。"
@@ -160,6 +196,7 @@ describe("handoff service", () => {
       displayName: "服务端 AI",
       role: "server"
     });
+    statusUpdateMock(client).mockClear();
 
     const paused = await service.pauseHandoff({
       handoffId: started.state.handoffId,
@@ -183,6 +220,24 @@ describe("handoff service", () => {
     expect(pausedPoll.messages).toEqual([]);
     expect(resumed.state.status).toBe("discussing");
     expect(resumedPoll.messages.map((message) => message.body)).toEqual(["服务端确认字段", "所有 AI 同步"]);
+    expect(statusUpdateMock(client)).toHaveBeenCalledWith("room_1", "server", "mem_server_ai", "offline");
+    expect(statusUpdateMock(client)).toHaveBeenCalledWith("room_1", "server", "mem_server_ai", "idle");
+  });
+
+  it("reports offline when leaving a room", async () => {
+    const service = createService(client, stateRoot);
+    const started = await service.startHandoff({
+      roomId: "room_1",
+      displayName: "服务端 AI",
+      role: "server"
+    });
+    statusUpdateMock(client).mockClear();
+
+    const left = await service.leaveRoom({ handoffId: started.state.handoffId });
+
+    expect(left.state.status).toBe("left");
+    expect(client.leaveRoom).toHaveBeenCalledWith("room_1", "mem_server_ai");
+    expect(statusUpdateMock(client)).toHaveBeenCalledWith("room_1", "server", "mem_server_ai", "offline");
   });
 
   it("reads local and central handoff status together", async () => {
@@ -350,6 +405,10 @@ function createService(client: ChatApiClient, stateRoot: string) {
     stateStore: createFileHandoffStateStore(stateRoot),
     now: () => "2026-06-13T00:00:00.000Z"
   });
+}
+
+function statusUpdateMock(client: ChatApiClient) {
+  return (client as unknown as { updateAiStatus: ReturnType<typeof vi.fn> }).updateAiStatus;
 }
 
 function buildMember(id: string, role: BusinessRole, leftAt: string | null = null): MemberDto {

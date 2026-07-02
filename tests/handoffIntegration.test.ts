@@ -6,19 +6,21 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createHttpChatApiClient } from "../src/chat/httpChatApiClient.js";
 import { createHandoffService } from "../src/handoff/handoffService.js";
 import { createFileHandoffStateStore } from "../src/state/fileHandoffStateStore.js";
-import { MESSAGE_TYPE, type MessageDto, type MessageTarget } from "../src/shared/index.js";
+import { MESSAGE_TYPE, type AiRoleStatus, type BusinessRole, type MessageDto, type MessageTarget } from "../src/shared/index.js";
 
 describe("handoff integration with chatroom HTTP API", () => {
   let httpServer: Server;
   let stateRoot: string;
   let apiBaseUrl: string;
   let messages: MessageDto[];
+  let aiStatusUpdates: Array<{ role: BusinessRole; memberId: string; status: AiRoleStatus }>;
 
   beforeEach(async () => {
     messages = [];
+    aiStatusUpdates = [];
     stateRoot = mkdtempSync(path.join(tmpdir(), "a2a-mcp-integration-state-"));
     httpServer = createServer((request, response) => {
-      void routeTestApi(request, response, messages);
+      void routeTestApi(request, response, messages, aiStatusUpdates);
     });
     await new Promise<void>((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
     const address = httpServer.address();
@@ -69,13 +71,16 @@ describe("handoff integration with chatroom HTTP API", () => {
     );
     expect(polled.messages.map((message) => message.body)).toEqual(["请确认 user_id 是字符串还是数字"]);
     expect(snapshot.messages.map((message) => message.body)).toContain("user_id 使用字符串。");
+    expect(aiStatusUpdates.map((update) => update.status)).toContain("busy");
+    expect(aiStatusUpdates.at(-1)).toMatchObject({ role: "server", memberId: "mem_ai", status: "idle" });
   });
 });
 
 async function routeTestApi(
   request: IncomingMessage,
   response: ServerResponse,
-  messages: MessageDto[]
+  messages: MessageDto[],
+  aiStatusUpdates: Array<{ role: BusinessRole; memberId: string; status: AiRoleStatus }>
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
   const pathParts = url.pathname.split("/").filter(Boolean);
@@ -113,6 +118,24 @@ async function routeTestApi(
         waitingSince: null,
         confirmedAt: null
       }
+    });
+  }
+
+  if (request.method === "POST" && pathParts[3] === "ai-statuses" && pathParts.length === 5) {
+    const body = (await readJson(request)) as { memberId: string; status: AiRoleStatus };
+    const role = pathParts[4] as BusinessRole;
+    aiStatusUpdates.push({ role, memberId: body.memberId, status: body.status });
+    return writeJson(response, 200, {
+      aiStatuses: [
+        {
+          roomId,
+          role,
+          status: body.status,
+          memberId: body.status === "offline" ? null : body.memberId,
+          displayName: body.status === "offline" ? null : "服务端 AI",
+          updatedAt: "2026-06-13T00:00:00.000Z"
+        }
+      ]
     });
   }
 

@@ -1,4 +1,5 @@
 import type {
+  AI_ROLE_STATUS,
   BUSINESS_ROLES,
   ERROR_CODE,
   HANDOFF_ROLE_STATUS,
@@ -16,6 +17,7 @@ export type RoomStatus = (typeof ROOM_STATUS)[keyof typeof ROOM_STATUS];
 export type MessageType = (typeof MESSAGE_TYPE)[keyof typeof MESSAGE_TYPE];
 export type HandoffSessionStatus = (typeof HANDOFF_SESSION_STATUS)[keyof typeof HANDOFF_SESSION_STATUS];
 export type HandoffRoleStatus = (typeof HANDOFF_ROLE_STATUS)[keyof typeof HANDOFF_ROLE_STATUS];
+export type AiRoleStatus = (typeof AI_ROLE_STATUS)[keyof typeof AI_ROLE_STATUS];
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];
 
 export type RoomDto = {
@@ -98,4 +100,13 @@ export type HandoffSessionDto = {
   updatedAt: string;
   waitingSince: string | null;
   confirmedAt: string | null;
+};
+
+export type AiRoleStatusDto = {
+  roomId: string;
+  role: MessageTarget;
+  status: AiRoleStatus;
+  memberId: string | null;
+  displayName: string | null;
+  updatedAt: string;
 };

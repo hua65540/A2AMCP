@@ -58,6 +58,12 @@ export const HANDOFF_ROLE_STATUS = {
   left: "left"
 } as const;
 
+export const AI_ROLE_STATUS = {
+  offline: "offline",
+  idle: "idle",
+  busy: "busy"
+} as const;
+
 export const ERROR_CODE = {
   adminAuthRequired: "ADMIN_AUTH_REQUIRED",
   adminRateLimited: "ADMIN_RATE_LIMITED",

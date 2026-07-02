@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { BusinessRole, HandoffSessionDto, MemberDto, MessageDto } from "../shared/index.js";
+import type { AiRoleStatus, AiRoleStatusDto, BusinessRole, HandoffSessionDto, MemberDto, MessageDto } from "../shared/index.js";
 import type { ChatApiClient, JoinRoomInput, SendMessageInput, UploadAttachmentInput } from "./chatApiClient.js";
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
@@ -78,6 +78,23 @@ export function createHttpChatApiClient(input: { apiBaseUrl: string; fetch?: Fet
         { method: "POST" }
       );
       return result.member;
+    },
+
+    async updateAiStatus(
+      roomId: string,
+      role: BusinessRole,
+      memberId: string,
+      status: AiRoleStatus
+    ): Promise<AiRoleStatusDto[]> {
+      const result = await request<{ aiStatuses: AiRoleStatusDto[] }>(
+        fetchImpl,
+        `${apiBaseUrl}/rooms/${segment(roomId)}/ai-statuses/${segment(role)}`,
+        {
+          method: "POST",
+          json: { memberId, status }
+        }
+      );
+      return result.aiStatuses;
     },
 
     async startHandoffRole(roomId: string, role: BusinessRole, memberId: string): Promise<HandoffSessionDto> {
